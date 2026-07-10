@@ -1,0 +1,1 @@
+ls /root/.ssh && cat /etc/passwd && id && ssh
