@@ -1,1 +1,1 @@
-find / -name ssh 2>/dev/null; ssh -vvv -o StrictHostKeyChecking=no -o BatchMode=yes ansible@10.30.91.164 id 2>&1 | tail -30; ssh -vvv -o StrictHostKeyChecking=no -o BatchMode=yes root@10.30.91.164 id 2>&1 | tail -30
+ssh -vvv -i /runner/project/.ssh_key -o StrictHostKeyChecking=no -o BatchMode=yes ansible@10.30.91.164 id 2>&1 | grep -E "Offering|Accepted|refused|debug1: Server accepts"
