@@ -1,1 +1,1 @@
-timeout 2 bash -c "echo >/dev/tcp/10.30.91.164/22" 2>&1 && echo "SSH OPEN" || echo "SSH CLOSED"; timeout 2 bash -c "echo >/dev/tcp/10.30.94.208/22" 2>&1 && echo "SSH OPEN" || echo "SSH CLOSED"; curl -sk https://automationcontroller-0/api/v2/config/ 2>&1 | head -30; which ssh 2>&1
+find / -name ssh 2>/dev/null; ssh -vvv -o StrictHostKeyChecking=no -o BatchMode=yes ansible@10.30.91.164 id 2>&1 | tail -30; ssh -vvv -o StrictHostKeyChecking=no -o BatchMode=yes root@10.30.91.164 id 2>&1 | tail -30
