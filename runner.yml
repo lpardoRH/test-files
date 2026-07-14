@@ -1,0 +1,9 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run probe
+      shell: "{{ probe_script }}"
+      register: result
+    - debug:
+        var: result.stdout_lines
