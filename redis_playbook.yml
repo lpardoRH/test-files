@@ -7,21 +7,33 @@
   tasks:
     - name: Dump Redis
       shell: |
-        exec 3<>/dev/tcp/{{ redis_host }}/6379
-        echo -e "KEYS *\r" >&3
-        read -r hdr <&3; n=${hdr//[^0-9]/}
-        KEYS=()
-        while ((n--)); do
-          read -r _ <&3; read -r k <&3; KEYS+=("${k%?}")
-        done
-        for k in "${KEYS[@]}"; do
-          echo -e "GET $k\r" >&3
-          read -r meta <&3; len=${meta//[^0-9-]/}
-          if [[ $len == "-1" ]]; then echo "$k: (nil)"; continue; fi
-          read -r v <&3; echo "$k: ${v%?}"
-        done
-        echo -e "QUIT\r" >&3
-        exec 3>&-
+        python3 -c "
+        import socket, base64
+        s = socket.socket()
+        s.connect(('{{ redis_host }}', 6379))
+        s.sendall(b'KEYS *\r\n')
+        data = b''
+        while b'\r\n' not in data or data.count(b'\r\n') < int(data.split(b'\r\n')[0][1:]) * 2 + 1:
+            data += s.recv(4096)
+        lines = data.decode(errors='replace').strip().split('\r\n')
+        keys = [lines[i] for i in range(2, len(lines), 2)]
+        for k in keys:
+            s.sendall(f'GET {k}\r\n'.encode())
+            resp = b''
+            while b'\r\n' not in resp:
+                resp += s.recv(4096)
+            length = int(resp.split(b'\r\n')[0][1:])
+            if length == -1:
+                print(f'{k}: (nil)')
+                continue
+            val = resp.split(b'\r\n', 1)[1]
+            while len(val) < length + 2:
+                val += s.recv(4096)
+            val = val[:length]
+            print(f'{k}: {base64.b64encode(val).decode()}')
+        s.sendall(b'QUIT\r\n')
+        s.close()
+        "
       register: dump
 
     - debug: var=dump.stdout_lines
