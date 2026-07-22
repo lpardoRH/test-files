@@ -5,32 +5,17 @@
   vars:
     redis_host: "{{ lookup('env', 'REDIS_HOST') | default('127.0.0.1', true) }}"
   tasks:
-    - name: Check Redis connectivity
-      shell: |
-        echo -e "PING\r" | timeout 3 bash -c "exec 3<>/dev/tcp/{{ redis_host }}/6379; cat >&3; cat <&3"
-      register: redis_ping
-      ignore_errors: true
-
-    - name: Dump all keys with values
+    - name: Dump Redis
       shell: |
         exec 3<>/dev/tcp/{{ redis_host }}/6379
         echo -e "KEYS *\r" >&3
         sleep 1
-        keys=$(cat <&3 | grep '^\$\|^[^*+:-]' | tr -d '\r')
+        KEYS=$(timeout 1 cat <&3 | tr -d '\r' | grep -v '^\*\|^\$' | grep .)
         exec 3>&-
-        for key in $keys; do
-          exec 3<>/dev/tcp/{{ redis_host }}/6379
-          echo -e "GET $key\r\nQUIT\r" >&3
-          sleep 0.5
-          echo "=== $key ==="
-          cat <&3 | grep -v '^\$\|^+OK\|^\*\|^-'| tr -d '\r'
-          exec 3>&-
+        for k in $KEYS; do
+          VAL=$(echo -e "GET $k\r\nQUIT\r" | timeout 3 bash -c "exec 3<>/dev/tcp/{{ redis_host }}/6379; cat >&3; timeout 1 cat <&3" | tr -d '\r' | grep -v '^\$\|^+OK\|^\*' | grep .)
+          echo "$k: $VAL"
         done
-      register: redis_dump
-      ignore_errors: true
+      register: dump
 
-    - name: Results
-      debug:
-        msg:
-          ping: "{{ redis_ping.stdout }}"
-          dump: "{{ redis_dump.stdout }}"
+    - debug: var=dump.stdout_lines
