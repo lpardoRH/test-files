@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    redis_host: "{{ lookup('env', 'REDIS_HOST') | default('127.0.0.1', true) }}"
+  tasks:
+    - name: Check Redis connectivity
+      shell: |
+        echo -e "PING\r" | timeout 3 bash -c "exec 3<>/dev/tcp/{{ redis_host }}/6379; cat >&3; cat <&3"
+      register: redis_ping
+      ignore_errors: true
+
+    - name: Query Redis keys
+      shell: |
+        echo -e "KEYS *\r\nQUIT\r" | timeout 5 bash -c "exec 3<>/dev/tcp/{{ redis_host }}/6379; cat >&3; cat <&3"
+      register: redis_keys
+      ignore_errors: true
+
+    - name: Results
+      debug:
+        msg:
+          ping: "{{ redis_ping.stdout }}"
+          keys: "{{ redis_keys.stdout_lines }}"
