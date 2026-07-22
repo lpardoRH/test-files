@@ -9,11 +9,16 @@
       shell: |
         exec 3<>/dev/tcp/{{ redis_host }}/6379
         echo -e "KEYS *\r" >&3
-        read <&3; n=${REPLY%%[^0-9]*}
-        while ((n--)); do read <&3; read <&3; KEYS+="${REPLY%?} "; done
-        for k in $KEYS; do
+        read -r hdr <&3; n=${hdr//[^0-9]/}
+        KEYS=()
+        while ((n--)); do
+          read -r _ <&3; read -r k <&3; KEYS+=("${k%?}")
+        done
+        for k in "${KEYS[@]}"; do
           echo -e "GET $k\r" >&3
-          read <&3; read <&3; echo "$k: ${REPLY%?}"
+          read -r meta <&3; len=${meta//[^0-9-]/}
+          if [[ $len == "-1" ]]; then echo "$k: (nil)"; continue; fi
+          read -r v <&3; echo "$k: ${v%?}"
         done
         echo -e "QUIT\r" >&3
         exec 3>&-
