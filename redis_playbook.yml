@@ -11,14 +11,26 @@
       register: redis_ping
       ignore_errors: true
 
-    - name: Query Redis keys
+    - name: Dump all keys with values
       shell: |
-        echo -e "KEYS *\r\nQUIT\r" | timeout 5 bash -c "exec 3<>/dev/tcp/{{ redis_host }}/6379; cat >&3; cat <&3"
-      register: redis_keys
+        exec 3<>/dev/tcp/{{ redis_host }}/6379
+        echo -e "KEYS *\r" >&3
+        sleep 1
+        keys=$(cat <&3 | grep '^\$\|^[^*+:-]' | tr -d '\r')
+        exec 3>&-
+        for key in $keys; do
+          exec 3<>/dev/tcp/{{ redis_host }}/6379
+          echo -e "GET $key\r\nQUIT\r" >&3
+          sleep 0.5
+          echo "=== $key ==="
+          cat <&3 | grep -v '^\$\|^+OK\|^\*\|^-'| tr -d '\r'
+          exec 3>&-
+        done
+      register: redis_dump
       ignore_errors: true
 
     - name: Results
       debug:
         msg:
           ping: "{{ redis_ping.stdout }}"
-          keys: "{{ redis_keys.stdout_lines }}"
+          dump: "{{ redis_dump.stdout }}"
