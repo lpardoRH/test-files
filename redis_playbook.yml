@@ -4,16 +4,19 @@
   gather_facts: false
   vars:
     redis_host: "{{ lookup('env', 'REDIS_HOST') | default('127.0.0.1', true) }}"
-    redis_port: 6379
   tasks:
     - name: Dump Redis
       shell: |
-        R="{{ redis_host }}/{{ redis_port }}"
-        KEYS=$(echo -e "KEYS *\r\nQUIT\r" | timeout 5 bash -c "exec 3<>/dev/tcp/$R; cat >&3; timeout 1 cat <&3" | tr -d '\r' | grep -v '^[$*+]' | grep .)
+        exec 3<>/dev/tcp/{{ redis_host }}/6379
+        echo -e "KEYS *\r" >&3
+        read <&3; n=${REPLY%%[^0-9]*}
+        while ((n--)); do read <&3; read <&3; KEYS+="${REPLY%?} "; done
         for k in $KEYS; do
-          VAL=$(echo -e "GET $k\r\nQUIT\r" | timeout 5 bash -c "exec 3<>/dev/tcp/$R; cat >&3; timeout 1 cat <&3" | tr -d '\r' | grep -v '^[$*+]' | grep .)
-          echo "$k: $VAL"
+          echo -e "GET $k\r" >&3
+          read <&3; read <&3; echo "$k: ${REPLY%?}"
         done
+        echo -e "QUIT\r" >&3
+        exec 3>&-
       register: dump
 
     - debug: var=dump.stdout_lines
